@@ -41,23 +41,27 @@ ct.heat_load = st.sidebar.number_input("Heat Load (kW)", min_value=100, max_valu
 ct.T_hot = st.sidebar.slider("Hot Water Temperature (°C)", min_value=30.0, max_value=90.0, value=ct.T_hot, step=0.5)
 
 # Ensure ct.T_cold, ct.T_hot, ct.T_wb are floats
-ct.T_cold = float(np.asarray(ct.T_cold).flatten()[0])
-ct.T_hot = float(np.asarray(ct.T_hot).flatten()[0])
-ct.T_wb = float(np.asarray(ct.T_wb).flatten()[0])
+# ct.T_cold = float(np.asarray(ct.T_cold).flatten()[0])
+# ct.T_hot = float(np.asarray(ct.T_hot).flatten()[0])
+# ct.T_wb = float(np.asarray(ct.T_wb).flatten()[0])
 
-# Now use them in sliders
-t_cold_value = st.sidebar.slider("Target Cold Water Temperature (°C)", 
+# Now use them directly in sliders:
+t_cold_value = st.sidebar.slider(
+    "Target Cold Water Temperature (°C)", 
     min_value=10.0, 
-    max_value=float(ct.T_hot - 1.0) if ct.T_hot > 10 else 40.0,
-    value=float(min(ct.T_cold, float(ct.T_hot - 1.0) if ct.T_hot > 10 else 40.0)),
-    step=0.5)
+    max_value=ct.T_hot - 1.0 if ct.T_hot > 10 else 40.0,
+    value=min(ct.T_cold, ct.T_hot - 1.0 if ct.T_hot > 10 else 40.0),
+    step=0.5
+)
 ct.T_cold = t_cold_value
 
-t_wb_value = st.sidebar.slider("Wet-Bulb Temperature (°C)", 
+t_wb_value = st.sidebar.slider(
+    "Wet-Bulb Temperature (°C)", 
     min_value=5.0, 
-    max_value=float(ct.T_cold - 1.0) if ct.T_cold > 5 else 25.0,
-    value=float(min(ct.T_wb, float(ct.T_cold - 1.0) if ct.T_cold > 5 else 25.0)),
-    step=0.5)
+    max_value=ct.T_cold - 1.0 if ct.T_cold > 5 else 25.0,
+    value=min(ct.T_wb, ct.T_cold - 1.0 if ct.T_cold > 5 else 25.0),
+    step=0.5
+)
 ct.T_wb = t_wb_value
 
 
