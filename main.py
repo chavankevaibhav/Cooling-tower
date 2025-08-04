@@ -7,9 +7,10 @@ class CoolingTowerDesign:
     def __init__(self):
         # Base parameters (SI units)
         self.heat_load = 1000  # kW
-        self._T_hot = 45.0  # °C
-        self._T_cold = 32.0  # °C
-        self._T_wb = 27.0  # Wet-bulb temp (°C)
+        self._T_hot = 45.0
+        self._T_cold = 32.0
+        self._T_wb = 27.0
+        self._cycles_of_concentration = 3
         self.Cp_water = 4.18  # kJ/kg·°C
         self.air_density = 1.2  # kg/m³
         self.water_density = 997  # kg/m³
@@ -18,7 +19,7 @@ class CoolingTowerDesign:
         self.fill_type = "Film"  # Film/Splash/Structured
         self.pressure_drop = 150  # Pa
         self.efficiency = 0.7  # Fan efficiency
-        self.cycles_of_concentration = 3  # Default value
+        self._cycles_of_concentration = 3  # Default value
         self.drift_loss_rate = 0.002  # Typical drift loss rate (0.2% of water flow)
         
         self.water_flow = None
@@ -29,41 +30,45 @@ class CoolingTowerDesign:
 
     @property
     def T_cold(self):
-        return float(np.asarray(self._T_cold).item())
-
+        return float(self._T_cold)
     @T_cold.setter
     def T_cold(self, value):
         self._T_cold = float(value)
 
     @property
     def T_hot(self):
-        return float(np.asarray(self._T_hot).item())
-
+        return float(self._T_hot)
     @T_hot.setter
     def T_hot(self, value):
         self._T_hot = float(value)
 
     @property
     def T_wb(self):
-        return float(np.asarray(self._T_wb).item())
-
+        return float(self._T_wb)
     @T_wb.setter
     def T_wb(self, value):
         self._T_wb = float(value)
+
+    @property
+    def cycles_of_concentration(self):
+        return float(self._cycles_of_concentration)
+    @cycles_of_concentration.setter
+    def cycles_of_concentration(self, value):
+        self._cycles_of_concentration = float(value)
 
     def calculate_water_flow(self):
         delta_T = self.T_hot - self.T_cold
         if delta_T <= 0:
             raise ValueError("Delta T must be positive. Check T_hot and T_cold values.")
         self.water_flow = (self.heat_load / (self.Cp_water * delta_T)) * 3600
-        return round(float(np.asarray(self.water_flow).item()), 1)
+        return round(self.water_flow, 1)
 
     def air_flow_requirement(self, L_G_ratio=1.0):
         if self.water_flow is None:
             self.calculate_water_flow()
-        water_flow_kg_s = (float(np.asarray(self.water_flow).item()) / 3600) * self.water_density
+        water_flow_kg_s = (self.water_flow / 3600) * self.water_density
         self.air_flow = water_flow_kg_s / (L_G_ratio * self.air_density)
-        return round(float(np.asarray(self.air_flow).item()), 1)
+        return round(self.air_flow, 1)
 
     def select_fill(self):
         fill_properties = {
@@ -79,22 +84,19 @@ class CoolingTowerDesign:
             self.select_fill()
         target_KaVL = 1.5
         self.fill_height = target_KaVL / self.fill_data["Ka"]
-        return round(float(np.asarray(self.fill_height).item()), 2)
+        return round(self.fill_height, 2)
 
     def estimate_costs(self):
         if self.water_flow is None: self.calculate_water_flow()
-        if self.fill_data is None: self.select_fill() # Ensure fill_data is set
+        if self.fill_data is None: self.select_fill()
         if self.fill_height is None: self.calculate_fill_height()
-        
-        fill_area = float(np.asarray(self.water_flow).item()) / 6
-        # Ensure fill_data['cost'] and self.fill_height are scalars for multiplication
-        fill_cost = fill_area * self.fill_data["cost"] * float(np.asarray(self.fill_height).item())
-
+        fill_area = self.water_flow / 6
+        fill_cost = fill_area * self.fill_data["cost"] * self.fill_height
         if self.air_flow is None: self.air_flow_requirement()
-        fan_cost = 5000 * (float(np.asarray(self.air_flow).item()) ** 0.8)
+        fan_cost = 5000 * (self.air_flow ** 0.8)
         basin_cost = 300 * fill_area
         self.total_cost = fill_cost + fan_cost + basin_cost
-        return round(float(np.asarray(self.total_cost).item()), 0)
+        return round(self.total_cost, 0)
 
     def optimize_approach(self, target_range_min=3, target_range_max=10):
         original_T_cold = self.T_cold
@@ -271,16 +273,15 @@ class CoolingTowerDesign:
         if self.air_flow is None: self.air_flow_requirement()
         current_fan_power = self.fan_power()
         axial_power = current_fan_power
-        axial_cost = 5000 * (float(np.asarray(self.air_flow).item()) ** 0.8)
-        
+        axial_cost = 5000 * (self.air_flow ** 0.8)
         centrifugal_efficiency_factor = 0.9
         centrifugal_power = axial_power / centrifugal_efficiency_factor
         centrifugal_cost_factor = 1.5
         centrifugal_cost = axial_cost * centrifugal_cost_factor
-        
         return {
-            "Axial Fan (Baseline)": {"Power (kW)": axial_power, "Estimated Cost ($)": round(axial_cost,0)},
-            "Centrifugal Fan (Example)": {"Power (kW)": round(centrifugal_power,1), "Estimated Cost ($)": round(centrifugal_cost,0)}
+            "Fan Type": ["Axial Fan (Baseline)", "Centrifugal Fan (Example)"],
+            "Power (kW)": [axial_power, round(centrifugal_power,1)],
+            "Estimated Cost ($)": [round(axial_cost,0), round(centrifugal_cost,0)]
         }
 
     def thermal_performance_curve(self):
@@ -327,3 +328,4 @@ class CoolingTowerDesign:
         ax.grid(True)
         if ranges: ax.invert_xaxis() # Common representation
         return fig
+
