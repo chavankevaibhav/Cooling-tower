@@ -7,9 +7,9 @@ class CoolingTowerDesign:
     def __init__(self):
         # Base parameters (SI units)
         self.heat_load = 1000  # kW
-        self.T_hot = 40  # °C
-        self.T_cold = 30  # °C
-        self.T_wb = 25  # Wet-bulb temp (°C)
+        self._T_hot = 45.0  # °C
+        self._T_cold = 32.0  # °C
+        self._T_wb = 27.0  # Wet-bulb temp (°C)
         self.Cp_water = 4.18  # kJ/kg·°C
         self.air_density = 1.2  # kg/m³
         self.water_density = 997  # kg/m³
@@ -26,6 +26,30 @@ class CoolingTowerDesign:
         self.fill_height = None
         self.fill_data = None
         self.total_cost = None
+
+    @property
+    def T_cold(self):
+        return float(np.asarray(self._T_cold).item())
+
+    @T_cold.setter
+    def T_cold(self, value):
+        self._T_cold = float(value)
+
+    @property
+    def T_hot(self):
+        return float(np.asarray(self._T_hot).item())
+
+    @T_hot.setter
+    def T_hot(self, value):
+        self._T_hot = float(value)
+
+    @property
+    def T_wb(self):
+        return float(np.asarray(self._T_wb).item())
+
+    @T_wb.setter
+    def T_wb(self, value):
+        self._T_wb = float(value)
 
     def calculate_water_flow(self):
         delta_T = self.T_hot - self.T_cold
