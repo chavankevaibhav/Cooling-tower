@@ -392,3 +392,5 @@ class CoolingTowerDesign:
         ax.set_title("Fill Cost vs Fill Height")
         ax.grid(True)
         return fig
+
+
