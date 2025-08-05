@@ -329,3 +329,66 @@ class CoolingTowerDesign:
         if ranges: ax.invert_xaxis() # Common representation
         return fig
 
+    def plot_water_loss_breakdown(self):
+        cycles = np.arange(2, 8)
+        evaporation = []
+        blowdown = []
+        drift = []
+        total_makeup = []
+
+        original_cycles = self.cycles_of_concentration
+        for c in cycles:
+            self.cycles_of_concentration = c
+            evaporation.append(self.calculate_evaporation_loss())
+            blowdown.append(self.calculate_blowdown_loss())
+            drift.append(self.calculate_drift_loss())
+            total_makeup.append(self.estimate_makeup_water())
+        self.cycles_of_concentration = original_cycles # Restore
+
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(cycles, evaporation, 'b^-', label='Evaporation Loss')
+        ax.plot(cycles, blowdown, 'ro-', label='Blowdown Loss')
+        ax.plot(cycles, drift, 'gs-', label='Drift Loss')
+        ax.plot(cycles, total_makeup, 'k*-', label='Total Makeup Water')
+        ax.set_xlabel("Cycles of Concentration")
+        ax.set_ylabel("Water Loss (m³/hr)")
+        ax.set_title("Water Loss Breakdown vs Cycles of Concentration")
+        ax.legend()
+        ax.grid(True)
+        return fig
+
+    def plot_fan_power_vs_air_flow(self):
+        air_flows = np.linspace(5, 50, 10)
+        fan_powers = []
+        original_air_flow = self.air_flow
+        for af in air_flows:
+            self.air_flow = af
+            fan_powers.append(self.fan_power())
+        self.air_flow = original_air_flow # Restore
+
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(air_flows, fan_powers, 'ms-')
+        ax.set_xlabel("Air Flow (m³/s)")
+        ax.set_ylabel("Fan Power (kW)")
+        ax.set_title("Fan Power vs Air Flow")
+        ax.grid(True)
+        return fig
+
+    def plot_fill_cost_vs_height(self):
+        fill_heights = np.linspace(1, 5, 10)
+        fill_costs = []
+        original_fill_height = self.fill_height
+        if self.fill_data is None: self.select_fill()
+        fill_area = self.water_flow / 6 if self.water_flow else self.calculate_water_flow() / 6
+        for fh in fill_heights:
+            fill_cost = fill_area * self.fill_data["cost"] * fh
+            fill_costs.append(fill_cost)
+        self.fill_height = original_fill_height # Restore
+
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(fill_heights, fill_costs, 'c*-')
+        ax.set_xlabel("Fill Height (m)")
+        ax.set_ylabel("Fill Cost ($)")
+        ax.set_title("Fill Cost vs Fill Height")
+        ax.grid(True)
+        return fig
