@@ -1,12 +1,16 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import numpy as np
 from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 
-# Import the CoolingTowerDesign class (assuming it's in main.py)
-# If main.py is in the same directory, use: from main import CoolingTowerDesign
-# For this example, I'll include a simplified version of the class
+# Set page configuration
+st.set_page_config(
+    page_title="Advanced Cooling Tower Design Tool",
+    page_icon="🌊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 class CoolingTowerDesign:
     def __init__(self):
@@ -154,9 +158,9 @@ class CoolingTowerDesign:
 
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(approaches, costs, 'bo-', linewidth=2, markersize=8)
-        ax.set_xlabel("Approach Temperature (°C)")
-        ax.set_ylabel("Total Cost ($)")
-        ax.set_title("Cost vs. Cooling Tower Approach")
+        ax.set_xlabel("Approach Temperature (°C)", fontsize=12)
+        ax.set_ylabel("Total Cost ($)", fontsize=12)
+        ax.set_title("Cost vs. Cooling Tower Approach", fontsize=14)
         ax.grid(True, alpha=0.3)
         return fig
 
@@ -189,54 +193,49 @@ class CoolingTowerDesign:
         makeup_water = evaporation_loss + blowdown_loss + drift_loss
         return round(float(np.asarray(makeup_water).item()), 2)
 
-    def calculate_tower_efficiency(self, T_hot, T_cold, T_wb):
-        if T_hot <= T_cold or T_cold <= T_wb: return 0
-        range_temp = T_hot - T_cold
-        approach_temp = T_cold - T_wb
-        if (range_temp + approach_temp) == 0: return 0
-        efficiency = (range_temp / (range_temp + approach_temp)) * 100
-        return round(float(np.asarray(efficiency).item()), 2)
+    def plot_water_loss_breakdown(self):
+        cycles = np.arange(2, 8)
+        evaporation = []
+        blowdown = []
+        drift = []
+        total_makeup = []
 
-    def thermal_performance_curve(self):
-        original_T_cold = self.T_cold
-        min_approach_for_plot = 1.0
-        min_range_for_plot = 1.0
-        
-        possible_T_cold_values = np.linspace(max(self.T_wb + min_approach_for_plot, self.T_wb + 0.1), 
-                                             min(self.T_hot - min_range_for_plot, self.T_hot - 0.1), 
-                                             15)
-        
-        ranges = []
-        approaches = []
-
-        for tc_val in possible_T_cold_values:
-            if tc_val <= self.T_wb or tc_val >= self.T_hot: continue
-
-            current_range = self.T_hot - tc_val
-            current_approach = tc_val - self.T_wb
-            
-            if current_range > 0 and current_approach > 0:
-                ranges.append(current_range)
-                approaches.append(current_approach)
-            
-        self.T_cold = original_T_cold
+        original_cycles = self.cycles_of_concentration
+        for c in cycles:
+            self.cycles_of_concentration = c
+            evaporation.append(self.calculate_evaporation_loss())
+            blowdown.append(self.calculate_blowdown_loss())
+            drift.append(self.calculate_drift_loss())
+            total_makeup.append(self.estimate_makeup_water())
+        self.cycles_of_concentration = original_cycles
 
         fig, ax = plt.subplots(figsize=(10, 6))
-        if ranges and approaches:
-            sorted_pairs = sorted(zip(ranges, approaches))
-            if sorted_pairs:
-                sorted_ranges, sorted_approaches = zip(*sorted_pairs)
-                ax.plot(sorted_ranges, sorted_approaches, 'ro-', linewidth=2, markersize=8)
-            else:
-                ax.text(0.5, 0.5, "No valid points for plotting.", ha='center', va='center')
-        else:
-            ax.text(0.5, 0.5, "Not enough valid points to plot.", ha='center', va='center')
-
-        ax.set_xlabel("Range (T_hot - T_cold) (°C)")
-        ax.set_ylabel("Approach (T_cold - T_wb) (°C)")
-        ax.set_title(f"Thermal Performance (T_hot={self.T_hot}°C, T_wb={self.T_wb}°C)")
+        ax.plot(cycles, evaporation, 'b^-', label='Evaporation Loss', linewidth=2, markersize=8)
+        ax.plot(cycles, blowdown, 'ro-', label='Blowdown Loss', linewidth=2, markersize=8)
+        ax.plot(cycles, drift, 'gs-', label='Drift Loss', linewidth=2, markersize=8)
+        ax.plot(cycles, total_makeup, 'k*-', label='Total Makeup Water', linewidth=2, markersize=8)
+        ax.set_xlabel("Cycles of Concentration", fontsize=12)
+        ax.set_ylabel("Water Loss (m³/hr)", fontsize=12)
+        ax.set_title("Water Loss Breakdown vs Cycles of Concentration", fontsize=14)
+        ax.legend()
         ax.grid(True, alpha=0.3)
-        if ranges: ax.invert_xaxis()
+        return fig
+
+    def plot_fan_power_vs_air_flow(self):
+        air_flows = np.linspace(5, 50, 10)
+        fan_powers = []
+        original_air_flow = self.air_flow
+        for af in air_flows:
+            self.air_flow = af
+            fan_powers.append(self.fan_power())
+        self.air_flow = original_air_flow
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(air_flows, fan_powers, 'ms-', linewidth=2, markersize=8)
+        ax.set_xlabel("Air Flow (m³/s)", fontsize=12)
+        ax.set_ylabel("Fan Power (kW)", fontsize=12)
+        ax.set_title("Fan Power vs Air Flow", fontsize=14)
+        ax.grid(True, alpha=0.3)
         return fig
 
     def design_summary(self):
@@ -250,130 +249,140 @@ class CoolingTowerDesign:
             fan_pwr = self.fan_power()
             range_temp = self.T_hot - self.T_cold
 
-            return f"""
-            ADVANCED COOLING TOWER DESIGN
-            =============================
-            Thermal Parameters:
-            - Heat load:       {self.heat_load} kW
-            - Water flow:      {self.water_flow:.1f} m³/hr
-            - Air flow:        {self.air_flow:.1f} m³/s
-            - Hot Water Temp:  {self.T_hot}°C
-            - Cold Water Temp: {self.T_cold}°C
-            - Wet Bulb Temp:   {self.T_wb}°C
-            - Approach:        {approach_temp:.1f} °C
-            - Range:           {range_temp:.1f} °C
-            
-            Mechanical Design:
-            - Fill type:       {self.fill_type} (Ka = {self.fill_data['Ka']})
-            - Fill height:     {self.fill_height:.2f} m
-            - Fan power:       {fan_pwr:.1f} kW (Estimated)
-            - Pressure drop:   {self.pressure_drop} Pa
-            - Fan Efficiency:  {self.efficiency*100:.0f}%
-            
-            Economic Analysis:
-            - Fill cost param: ${self.fill_data['cost']}/m²
-            - Total cost:      ${total_cost_val:,.0f} (Estimated)
-            
-            Water Balance Estimates:
-            - Evaporation Loss: {self.calculate_evaporation_loss():.2f} m³/hr
-            - Blowdown Loss:    {self.calculate_blowdown_loss():.2f} m³/hr (at {self.cycles_of_concentration} cycles)
-            - Drift Loss:       {self.calculate_drift_loss():.2f} m³/hr
-            - Total Makeup Water: {self.estimate_makeup_water():.2f} m³/hr
-            """
+            return {
+                "heat_load": self.heat_load,
+                "water_flow": self.water_flow,
+                "air_flow": self.air_flow,
+                "T_hot": self.T_hot,
+                "T_cold": self.T_cold,
+                "T_wb": self.T_wb,
+                "approach": approach_temp,
+                "range": range_temp,
+                "fill_type": self.fill_type,
+                "ka_value": self.fill_data['Ka'],
+                "fill_height": self.fill_height,
+                "fan_power": fan_pwr,
+                "pressure_drop": self.pressure_drop,
+                "efficiency": self.efficiency,
+                "fill_cost_param": self.fill_data['cost'],
+                "total_cost": total_cost_val,
+                "evaporation_loss": self.calculate_evaporation_loss(),
+                "blowdown_loss": self.calculate_blowdown_loss(),
+                "drift_loss": self.calculate_drift_loss(),
+                "makeup_water": self.estimate_makeup_water(),
+                "cycles": self.cycles_of_concentration
+            }
         except ValueError as e:
-            return f"Error in generating summary: {e}."
+            return {"error": f"Error in generating summary: {e}"}
         except Exception as e:
-            return f"An unexpected error occurred: {e}"
+            return {"error": f"An unexpected error occurred: {e}"}
 
+# Initialize session state
+if 'tower' not in st.session_state:
+    st.session_state.tower = CoolingTowerDesign()
 
-# Streamlit App
 def main():
-    st.set_page_config(
-        page_title="Cooling Tower Design Tool",
-        page_icon="🏭",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-    
-    st.title("🏭 Advanced Cooling Tower Design Tool")
-    st.markdown("Design and optimize cooling towers with advanced thermal and economic analysis")
-    
-    # Initialize session state
-    if 'tower' not in st.session_state:
-        st.session_state.tower = CoolingTowerDesign()
-    
-    tower = st.session_state.tower
-    
-    # Sidebar for inputs
-    st.sidebar.header("Design Parameters")
+    st.title("🌊 Advanced Cooling Tower Design Tool")
+    st.markdown("Design and optimize industrial cooling towers with comprehensive analysis")
+
+    # Sidebar for input parameters
+    st.sidebar.header("🔧 Design Parameters")
     
     # Basic thermal parameters
     st.sidebar.subheader("Thermal Parameters")
     heat_load = st.sidebar.number_input("Heat Load (kW)", min_value=100, max_value=10000, value=1000, step=100)
     T_hot = st.sidebar.number_input("Hot Water Temperature (°C)", min_value=30.0, max_value=80.0, value=45.0, step=0.5)
-    T_cold = st.sidebar.number_input("Cold Water Temperature (°C)", min_value=15.0, max_value=50.0, value=32.0, step=0.5)
-    T_wb = st.sidebar.number_input("Wet Bulb Temperature (°C)", min_value=10.0, max_value=35.0, value=27.0, step=0.5)
+    T_wb = st.sidebar.number_input("Wet Bulb Temperature (°C)", min_value=15.0, max_value=35.0, value=27.0, step=0.5)
+    T_cold = st.sidebar.number_input("Cold Water Temperature (°C)", min_value=20.0, max_value=50.0, value=32.0, step=0.5)
     
     # Advanced parameters
-    st.sidebar.subheader("Advanced Parameters")
-    fill_type = st.sidebar.selectbox("Fill Type", ["Film", "Splash", "Structured"])
-    pressure_drop = st.sidebar.number_input("Pressure Drop (Pa)", min_value=50, max_value=500, value=150, step=10)
+    st.sidebar.subheader("Design Specifications")
+    fill_type = st.sidebar.selectbox("Fill Type", ["Film", "Splash", "Structured"], index=0)
+    cycles = st.sidebar.slider("Cycles of Concentration", min_value=2.0, max_value=8.0, value=3.0, step=0.5)
+    pressure_drop = st.sidebar.number_input("Pressure Drop (Pa)", min_value=50, max_value=500, value=150, step=25)
     fan_efficiency = st.sidebar.slider("Fan Efficiency", min_value=0.5, max_value=0.9, value=0.7, step=0.05)
-    cycles_of_concentration = st.sidebar.number_input("Cycles of Concentration", min_value=2.0, max_value=8.0, value=3.0, step=0.5)
-    
-    # Update tower parameters
+
+    # Update tower object
+    tower = st.session_state.tower
     tower.heat_load = heat_load
     tower.T_hot = T_hot
     tower.T_cold = T_cold
     tower.T_wb = T_wb
     tower.fill_type = fill_type
+    tower.cycles_of_concentration = cycles
     tower.pressure_drop = pressure_drop
     tower.efficiency = fan_efficiency
-    tower.cycles_of_concentration = cycles_of_concentration
-    
+
     # Validation
     if T_cold <= T_wb:
-        st.error("❌ Cold water temperature must be higher than wet bulb temperature!")
+        st.error("⚠️ Cold water temperature must be higher than wet bulb temperature!")
         return
     if T_hot <= T_cold:
-        st.error("❌ Hot water temperature must be higher than cold water temperature!")
+        st.error("⚠️ Hot water temperature must be higher than cold water temperature!")
         return
-    
+
     # Main content area with tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Design Summary", "📈 Performance Analysis", "🔧 Optimization", "💰 Economic Analysis", "🌊 Water Balance"])
-    
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Design Summary", "📈 Performance Analysis", "💧 Water Balance", "⚡ Power Analysis", "🎯 Optimization"])
+
     with tab1:
         st.header("Design Summary")
         
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            try:
-                summary = tower.design_summary()
-                st.text(summary)
-            except Exception as e:
-                st.error(f"Error generating summary: {e}")
-        
-        with col2:
-            st.subheader("Key Metrics")
-            try:
-                tower.calculate_water_flow()
-                tower.air_flow_requirement()
-                tower.calculate_fill_height()
-                tower.estimate_costs()
+        try:
+            summary = tower.design_summary()
+            if "error" in summary:
+                st.error(summary["error"])
+            else:
+                col1, col2 = st.columns(2)
                 
-                approach = tower.T_cold - tower.T_wb
-                range_temp = tower.T_hot - tower.T_cold
-                efficiency = tower.calculate_tower_efficiency(tower.T_hot, tower.T_cold, tower.T_wb)
-                
-                st.metric("Approach Temperature", f"{approach:.1f} °C")
-                st.metric("Range Temperature", f"{range_temp:.1f} °C")
-                st.metric("Tower Efficiency", f"{efficiency:.1f} %")
-                st.metric("Total Cost", f"${tower.total_cost:,.0f}")
-                
-            except Exception as e:
-                st.error(f"Error calculating metrics: {e}")
-    
+                with col1:
+                    st.subheader("Thermal Performance")
+                    thermal_data = {
+                        "Parameter": ["Heat Load", "Water Flow", "Air Flow", "Hot Water Temp", "Cold Water Temp", "Wet Bulb Temp", "Approach", "Range"],
+                        "Value": [f"{summary['heat_load']} kW", f"{summary['water_flow']:.1f} m³/hr", f"{summary['air_flow']:.1f} m³/s", 
+                                f"{summary['T_hot']}°C", f"{summary['T_cold']}°C", f"{summary['T_wb']}°C", 
+                                f"{summary['approach']:.1f}°C", f"{summary['range']:.1f}°C"]
+                    }
+                    st.dataframe(pd.DataFrame(thermal_data), use_container_width=True)
+                    
+                    st.subheader("Water Balance")
+                    water_data = {
+                        "Loss Type": ["Evaporation", "Blowdown", "Drift", "Total Makeup"],
+                        "Flow Rate (m³/hr)": [f"{summary['evaporation_loss']:.2f}", f"{summary['blowdown_loss']:.2f}", 
+                                            f"{summary['drift_loss']:.2f}", f"{summary['makeup_water']:.2f}"]
+                    }
+                    st.dataframe(pd.DataFrame(water_data), use_container_width=True)
+
+                with col2:
+                    st.subheader("Mechanical Design")
+                    mechanical_data = {
+                        "Parameter": ["Fill Type", "Ka Value", "Fill Height", "Fan Power", "Pressure Drop", "Fan Efficiency"],
+                        "Value": [summary['fill_type'], f"{summary['ka_value']}", f"{summary['fill_height']:.2f} m", 
+                                f"{summary['fan_power']:.1f} kW", f"{summary['pressure_drop']} Pa", f"{summary['efficiency']*100:.0f}%"]
+                    }
+                    st.dataframe(pd.DataFrame(mechanical_data), use_container_width=True)
+                    
+                    st.subheader("Economic Analysis")
+                    economic_data = {
+                        "Parameter": ["Fill Cost Parameter", "Total Estimated Cost"],
+                        "Value": [f"${summary['fill_cost_param']}/m²", f"${summary['total_cost']:,.0f}"]
+                    }
+                    st.dataframe(pd.DataFrame(economic_data), use_container_width=True)
+
+                # Key metrics in columns
+                st.subheader("Key Performance Indicators")
+                metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+                with metric_col1:
+                    st.metric("Approach Temperature", f"{summary['approach']:.1f}°C")
+                with metric_col2:
+                    st.metric("Range Temperature", f"{summary['range']:.1f}°C")
+                with metric_col3:
+                    st.metric("Total Cost", f"${summary['total_cost']:,.0f}")
+                with metric_col4:
+                    st.metric("Fan Power", f"{summary['fan_power']:.1f} kW")
+
+        except Exception as e:
+            st.error(f"Error generating design summary: {e}")
+
     with tab2:
         st.header("Performance Analysis")
         
@@ -384,149 +393,182 @@ def main():
             try:
                 fig1 = tower.plot_performance_curve()
                 st.pyplot(fig1)
-                plt.close(fig1)
+                plt.close()
             except Exception as e:
-                st.error(f"Error generating performance curve: {e}")
+                st.error(f"Error plotting performance curve: {e}")
         
         with col2:
-            st.subheader("Thermal Performance")
+            st.subheader("Current Operating Point")
             try:
-                fig2 = tower.thermal_performance_curve()
-                st.pyplot(fig2)
-                plt.close(fig2)
+                summary = tower.design_summary()
+                if "error" not in summary:
+                    efficiency = (summary['range'] / (summary['range'] + summary['approach'])) * 100
+                    st.metric("Tower Efficiency", f"{efficiency:.1f}%")
+                    st.metric("Approach/Range Ratio", f"{summary['approach']/summary['range']:.2f}")
+                    
+                    # Performance indicators
+                    st.write("**Performance Assessment:**")
+                    if summary['approach'] < 4:
+                        st.success("✅ Excellent approach temperature")
+                    elif summary['approach'] < 6:
+                        st.info("ℹ️ Good approach temperature")
+                    else:
+                        st.warning("⚠️ High approach temperature - consider optimization")
             except Exception as e:
-                st.error(f"Error generating thermal curve: {e}")
-    
+                st.error(f"Error calculating performance metrics: {e}")
+
     with tab3:
-        st.header("Optimization")
-        
-        st.subheader("Approach Temperature Optimization")
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            min_approach = st.number_input("Minimum Approach (°C)", min_value=1.0, max_value=8.0, value=3.0, step=0.5)
-            max_approach = st.number_input("Maximum Approach (°C)", min_value=4.0, max_value=15.0, value=10.0, step=0.5)
-            
-            if st.button("🎯 Optimize Approach", type="primary"):
-                with st.spinner("Optimizing..."):
-                    try:
-                        optimal_approach = tower.optimize_approach(min_approach, max_approach)
-                        if optimal_approach:
-                            st.success(f"✅ Optimal approach temperature: {optimal_approach:.1f} °C")
-                            st.success(f"✅ Optimized cold water temperature: {tower.T_wb + optimal_approach:.1f} °C")
-                            st.success(f"✅ Estimated total cost: ${tower.total_cost:,.0f}")
-                        else:
-                            st.error("❌ Optimization failed. Try different bounds.")
-                    except Exception as e:
-                        st.error(f"Error during optimization: {e}")
-        
-        with col2:
-            st.subheader("Optimization Results")
-            try:
-                # Show current vs optimal comparison
-                current_cost = tower.estimate_costs()
-                current_approach = tower.T_cold - tower.T_wb
-                
-                optimization_data = {
-                    "Parameter": ["Current Approach (°C)", "Current Cost ($)", "Water Flow (m³/hr)", "Air Flow (m³/s)"],
-                    "Value": [f"{current_approach:.1f}", f"{current_cost:,.0f}", f"{tower.water_flow:.1f}", f"{tower.air_flow:.1f}"]
-                }
-                
-                df_opt = pd.DataFrame(optimization_data)
-                st.dataframe(df_opt, use_container_width=True)
-                
-            except Exception as e:
-                st.error(f"Error displaying optimization results: {e}")
-    
-    with tab4:
-        st.header("Economic Analysis")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Cost Breakdown")
-            try:
-                tower.calculate_water_flow()
-                tower.air_flow_requirement()
-                tower.select_fill()
-                tower.calculate_fill_height()
-                
-                fill_area = tower.water_flow / 6
-                fill_cost = fill_area * tower.fill_data["cost"] * tower.fill_height
-                fan_cost = 5000 * (tower.air_flow ** 0.8)
-                basin_cost = 300 * fill_area
-                
-                cost_data = {
-                    "Component": ["Fill", "Fan", "Basin", "Total"],
-                    "Cost ($)": [f"{fill_cost:,.0f}", f"{fan_cost:,.0f}", f"{basin_cost:,.0f}", f"{fill_cost + fan_cost + basin_cost:,.0f}"]
-                }
-                
-                df_cost = pd.DataFrame(cost_data)
-                st.dataframe(df_cost, use_container_width=True)
-                
-            except Exception as e:
-                st.error(f"Error calculating cost breakdown: {e}")
-        
-        with col2:
-            st.subheader("Fill Type Comparison")
-            fill_comparison = {
-                "Fill Type": ["Splash", "Film", "Structured"],
-                "Ka Value": [0.6, 0.8, 1.1],
-                "Cost ($/m²)": [80, 120, 200],
-                "Efficiency": ["Low", "Medium", "High"]
-            }
-            
-            df_fill = pd.DataFrame(fill_comparison)
-            st.dataframe(df_fill, use_container_width=True)
-    
-    with tab5:
         st.header("Water Balance Analysis")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Water Loss Components")
+            st.subheader("Water Losses vs Concentration Cycles")
             try:
-                evap_loss = tower.calculate_evaporation_loss()
-                blowdown_loss = tower.calculate_blowdown_loss()
-                drift_loss = tower.calculate_drift_loss()
-                makeup_water = tower.estimate_makeup_water()
-                
-                water_data = {
-                    "Loss Type": ["Evaporation", "Blowdown", "Drift", "Total Makeup"],
-                    "Flow Rate (m³/hr)": [f"{evap_loss:.2f}", f"{blowdown_loss:.2f}", f"{drift_loss:.2f}", f"{makeup_water:.2f}"]
-                }
-                
-                df_water = pd.DataFrame(water_data)
-                st.dataframe(df_water, use_container_width=True)
-                
+                fig2 = tower.plot_water_loss_breakdown()
+                st.pyplot(fig2)
+                plt.close()
             except Exception as e:
-                st.error(f"Error calculating water balance: {e}")
+                st.error(f"Error plotting water loss breakdown: {e}")
         
         with col2:
-            st.subheader("Water Balance Chart")
+            st.subheader("Water Management Insights")
             try:
-                evap_loss = tower.calculate_evaporation_loss()
-                blowdown_loss = tower.calculate_blowdown_loss()
-                drift_loss = tower.calculate_drift_loss()
-                
-                fig, ax = plt.subplots(figsize=(8, 6))
-                losses = [evap_loss, blowdown_loss, drift_loss]
-                labels = ['Evaporation', 'Blowdown', 'Drift']
-                colors = ['skyblue', 'lightcoral', 'lightgreen']
-                
-                ax.pie(losses, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
-                ax.set_title('Water Loss Distribution')
-                st.pyplot(fig)
-                plt.close(fig)
-                
+                summary = tower.design_summary()
+                if "error" not in summary:
+                    st.write("**Water Loss Distribution:**")
+                    total_loss = summary['evaporation_loss'] + summary['blowdown_loss'] + summary['drift_loss']
+                    evap_pct = (summary['evaporation_loss'] / total_loss) * 100
+                    blow_pct = (summary['blowdown_loss'] / total_loss) * 100
+                    drift_pct = (summary['drift_loss'] / total_loss) * 100
+                    
+                    st.write(f"• Evaporation: {evap_pct:.1f}%")
+                    st.write(f"• Blowdown: {blow_pct:.1f}%")
+                    st.write(f"• Drift: {drift_pct:.1f}%")
+                    
+                    st.write("**Recommendations:**")
+                    if summary['cycles'] < 4:
+                        st.info("💡 Consider increasing cycles of concentration to reduce blowdown")
+                    if summary['drift_loss'] > 0.5:
+                        st.warning("⚠️ High drift losses - check drift eliminators")
             except Exception as e:
-                st.error(f"Error generating water balance chart: {e}")
-    
+                st.error(f"Error calculating water insights: {e}")
+
+    with tab4:
+        st.header("Power Analysis")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Fan Power vs Air Flow")
+            try:
+                fig3 = tower.plot_fan_power_vs_air_flow()
+                st.pyplot(fig3)
+                plt.close()
+            except Exception as e:
+                st.error(f"Error plotting fan power analysis: {e}")
+        
+        with col2:
+            st.subheader("Power Consumption Analysis")
+            try:
+                summary = tower.design_summary()
+                if "error" not in summary:
+                    annual_power = summary['fan_power'] * 8760  # kWh/year
+                    power_cost_rate = st.number_input("Electricity Rate ($/kWh)", min_value=0.05, max_value=0.50, value=0.12, step=0.01)
+                    annual_cost = annual_power * power_cost_rate
+                    
+                    st.metric("Annual Power Consumption", f"{annual_power:,.0f} kWh")
+                    st.metric("Annual Power Cost", f"${annual_cost:,.0f}")
+                    
+                    # Power efficiency metrics
+                    power_per_ton = summary['fan_power'] / (summary['heat_load'] / 3.517)  # kW per ton
+                    st.metric("Power per Cooling Ton", f"{power_per_ton:.2f} kW/ton")
+                    
+                    if power_per_ton < 0.02:
+                        st.success("✅ Excellent power efficiency")
+                    elif power_per_ton < 0.035:
+                        st.info("ℹ️ Good power efficiency")
+                    else:
+                        st.warning("⚠️ Consider optimization for better efficiency")
+            except Exception as e:
+                st.error(f"Error calculating power analysis: {e}")
+
+    with tab5:
+        st.header("Design Optimization")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Approach Temperature Optimization")
+            if st.button("🎯 Optimize Approach Temperature"):
+                with st.spinner("Optimizing..."):
+                    try:
+                        min_approach = st.number_input("Minimum Approach (°C)", min_value=2.0, max_value=8.0, value=3.0, step=0.5)
+                        max_approach = st.number_input("Maximum Approach (°C)", min_value=5.0, max_value=15.0, value=10.0, step=0.5)
+                        
+                        optimal_approach = tower.optimize_approach(min_approach, max_approach)
+                        if optimal_approach:
+                            st.success(f"✅ Optimal approach temperature: {optimal_approach}°C")
+                            st.success(f"💰 Optimized total cost: ${tower.total_cost:,.0f}")
+                            st.info(f"🌡️ Optimized cold water temperature: {tower.T_cold:.1f}°C")
+                        else:
+                            st.error("❌ Optimization failed - check input parameters")
+                    except Exception as e:
+                        st.error(f"Optimization error: {e}")
+        
+        with col2:
+            st.subheader("Design Recommendations")
+            try:
+                summary = tower.design_summary()
+                if "error" not in summary:
+                    st.write("**Current Design Assessment:**")
+                    
+                    # Approach temperature assessment
+                    if summary['approach'] < 4:
+                        st.write("🟢 **Approach**: Excellent (< 4°C)")
+                    elif summary['approach'] < 6:
+                        st.write("🟡 **Approach**: Good (4-6°C)")
+                    else:
+                        st.write("🔴 **Approach**: Consider optimization (> 6°C)")
+                    
+                    # Range assessment
+                    if summary['range'] > 8:
+                        st.write("🟢 **Range**: Good thermal load distribution")
+                    else:
+                        st.write("🟡 **Range**: Consider higher range for efficiency")
+                    
+                    # Fill selection
+                    if tower.fill_type == "Structured":
+                        st.write("🟢 **Fill**: High-performance structured fill")
+                    elif tower.fill_type == "Film":
+                        st.write("🟡 **Fill**: Standard film fill - good balance")
+                    else:
+                        st.write("🟡 **Fill**: Basic splash fill - consider upgrade")
+                    
+                    st.write("**Optimization Suggestions:**")
+                    if summary['total_cost'] > 100000:
+                        st.write("💡 High cost - consider lower approach or different fill")
+                    if summary['fan_power'] > 50:
+                        st.write("💡 High fan power - optimize air flow requirements")
+                    if summary['cycles'] < 4:
+                        st.write("💡 Increase concentration cycles to reduce water costs")
+                        
+            except Exception as e:
+                st.error(f"Error generating recommendations: {e}")
+
     # Footer
     st.markdown("---")
-    st.markdown("**Cooling Tower Design Tool** - Advanced thermal and economic analysis for industrial cooling systems")
-
+    st.markdown("### About This Tool")
+    st.markdown("""
+    This advanced cooling tower design tool provides comprehensive analysis including:
+    - **Thermal Design**: Heat load calculations and temperature optimization
+    - **Mechanical Design**: Fill selection, fan sizing, and pressure drop analysis  
+    - **Water Balance**: Evaporation, blowdown, and drift loss calculations
+    - **Economic Analysis**: Cost estimation and optimization
+    - **Performance Optimization**: Automated approach temperature optimization
+    
+    Built with Streamlit for interactive engineering design and analysis.
+    """)
 
 if __name__ == "__main__":
     main()
